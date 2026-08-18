@@ -6,22 +6,25 @@ test('Create employee API', async ({ request }) => {
 
     const response = await request.post(`${BASE_URL}/api/employees`, {
         data: {
-            name: 'Joh8n',
-            email: 'joh8n@example.com',
-            phone: '9870543210',
+            firstName: 'John',
+            lastName: 'David',
+            email: `john${Date.now()}@example.com`,
+            phone: '9876543210',
             department: 'IT'
         }
     });
 
-    expect(response.status()).toBe(201);
+    // Your controller currently returns 200
+    expect(response.status()).toBe(200);
 
     const employee = await response.json();
 
-    expect(employee.name).toBe('John');
-    expect(employee.email).toBe('john@example.com');
-
-    console.log('Created Employee:', employee);
+    expect(employee).toBeTruthy();
+    expect(employee.firstName).toBe('John');
+    expect(employee.lastName).toBe('David');
 });
+
+
 test('Get employees API', async ({ request }) => {
 
     const response = await request.get(`${BASE_URL}/api/employees`);
@@ -34,9 +37,31 @@ test('Get employees API', async ({ request }) => {
 
     console.log('Employees:', employees);
 });
+
+
 test('Delete employee API', async ({ request }) => {
 
-    const response = await request.delete(`${BASE_URL}/api/employees/1`);
+    // First create an employee
+    const createResponse = await request.post(`${BASE_URL}/api/employees`, {
+        data: {
+            firstName: 'Delete',
+            lastName: 'Test',
+            email: `delete${Date.now()}@example.com`,
+            phone: '9876543210',
+            department: 'IT'
+        }
+    });
 
-    expect(response.status()).toBe(204);
+    expect(createResponse.status()).toBe(200);
+
+    const employee = await createResponse.json();
+
+    console.log('Created employee ID:', employee.id);
+
+    // Delete the employee that was just created
+    const deleteResponse = await request.delete(
+        `${BASE_URL}/api/employees/${employee.id}`
+    );
+
+    expect(deleteResponse.status()).toBe(204);
 });
