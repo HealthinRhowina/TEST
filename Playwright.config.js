@@ -1,21 +1,25 @@
-const { defineConfig } = require('@playwright/test');
+const { defineConfig } =
+    require("@playwright/test");
 
 module.exports = defineConfig({
 
-    testDir: './src/test/tests',
+    testDir: "./src/test/tests",
+
+    workers: 1,
 
     reporter: [
-        ['list'],
+        ["list"],
         [
-            'html',
+            "html",
             {
-                outputFolder: 'playwright-report',
-                open: 'never'
+                outputFolder: "playwright-report",
+                open: "never"
             }
         ]
     ],
 
     use: {
-        baseURL: 'http://localhost:8082'
+        baseURL:
+            "http://localhost:8082"
     }
 });

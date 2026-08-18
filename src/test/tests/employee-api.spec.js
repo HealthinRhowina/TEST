@@ -1,74 +1,131 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require("@playwright/test");
 
-const BASE_URL = 'http://localhost:8082';
+const {
+    saveResult,
+    resetReport
+} = require("./api-report");
+
+const BASE_URL = "http://localhost:8082";
 
 
-test('Create employee API', async ({ request }) => {
+test.beforeAll(() => {
+    resetReport();
+});
+
+
+test("Create employee API", async ({ request }) => {
+
+    const start = Date.now();
 
     const response = await request.post(
         `${BASE_URL}/api/employees`,
         {
             data: {
-                firstName: 'John',
-                lastName: 'David',
+                firstName: "John",
+                lastName: "David",
                 email: `john${Date.now()}@example.com`,
-                phone: '9876543210',
-                department: 'IT'
+                phone: "9876543210",
+                department: "IT"
             }
         }
     );
 
+    const time =
+        (Date.now() - start) / 1000;
+
+    saveResult({
+        endpoint: "Create employee",
+        method: "POST",
+        path: "/api/employees",
+        status: response.status(),
+        success: response.status() === 200,
+        time
+    });
+
     expect(response.status()).toBe(200);
 
-    const employee = await response.json();
+    const employee =
+        await response.json();
 
-    expect(employee.firstName).toBe('John');
-    expect(employee.lastName).toBe('David');
+    expect(employee.firstName)
+        .toBe("John");
 });
 
 
-test('Get employees API', async ({ request }) => {
+test("Get employees API", async ({ request }) => {
+
+    const start = Date.now();
 
     const response =
-        await request.get(`${BASE_URL}/api/employees`);
+        await request.get(
+            `${BASE_URL}/api/employees`
+        );
+
+    const time =
+        (Date.now() - start) / 1000;
+
+    saveResult({
+        endpoint: "Get employees",
+        method: "GET",
+        path: "/api/employees",
+        status: response.status(),
+        success: response.status() === 200,
+        time
+    });
 
     expect(response.status()).toBe(200);
 
-    const employees = await response.json();
+    const employees =
+        await response.json();
 
-    expect(Array.isArray(employees)).toBeTruthy();
-
-    console.log('Employees:', employees);
+    expect(
+        Array.isArray(employees)
+    ).toBeTruthy();
 });
 
 
-test('Delete employee API', async ({ request }) => {
+test("Delete employee API", async ({ request }) => {
 
+    // Create employee first
     const createResponse =
         await request.post(
             `${BASE_URL}/api/employees`,
             {
                 data: {
-                    firstName: 'Delete',
-                    lastName: 'Test',
-                    email: `delete${Date.now()}@example.com`,
-                    phone: '9876543210',
-                    department: 'IT'
+                    firstName: "Delete",
+                    lastName: "Employee",
+                    email:
+                        `delete${Date.now()}@example.com`,
+                    phone: "9876543210",
+                    department: "IT"
                 }
             }
         );
 
-    expect(createResponse.status()).toBe(200);
-
     const employee =
         await createResponse.json();
 
-    console.log('Created Employee ID:', employee.id);
 
-    const deleteResponse =
+    // Measure DELETE API only
+    const start = Date.now();
+
+    const response =
         await request.delete(
             `${BASE_URL}/api/employees/${employee.id}`
         );
 
-    expect(deleteResponse.status()).toBe(204);
+    const time =
+        (Date.now() - start) / 1000;
+
+    saveResult({
+        endpoint: "Delete employee",
+        method: "DELETE",
+        path: `/api/employees/${employee.id}`,
+        status: response.status(),
+        success: response.status() === 204,
+        time
+    });
+
+    expect(response.status())
+        .toBe(204);
 });

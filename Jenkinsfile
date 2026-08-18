@@ -118,6 +118,12 @@ pipeline {
 
             archiveArtifacts artifacts: 'springboot.log',
                              allowEmptyArchive: true
+
+            archiveArtifacts artifacts: 'reports/api-performance.html',
+                             allowEmptyArchive: true
+
+            archiveArtifacts artifacts: 'reports/api-performance.json',
+                             allowEmptyArchive: true
         }
 
         success {
