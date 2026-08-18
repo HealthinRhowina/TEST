@@ -1,14 +1,11 @@
 pipeline {
     agent any
 
-    stages {
+    tools {
+        maven 'Maven-3.9'
+    }
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/HealthinRhowina/TEST.git'
-            }
-        }
+    stages {
 
         stage('Build') {
             steps {
@@ -25,7 +22,8 @@ pipeline {
 
     post {
         always {
-            junit 'target/surefire-reports/*.xml'
+            junit allowEmptyResults: true,
+                  testResults: 'target/surefire-reports/*.xml'
         }
     }
 }
