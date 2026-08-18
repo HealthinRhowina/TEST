@@ -1,0 +1,40 @@
+.edit-button,
+.delete-button {
+    width: auto;
+    padding: 8px 14px;
+    margin: 3px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.edit-button {
+    background-color: #2563eb;
+}
+
+.edit-button:hover {
+    background-color: #1d4ed8;
+}
+
+.delete-button {
+    background-color: #dc2626;
+}
+
+.delete-button:hover {
+    background-color: #b91c1c;
+}
+
+.cancel-button {
+    background-color: #6b7280;
+}
+
+.cancel-button:hover {
+    background-color: #4b5563;
+}
+
+.success-message {
+    color: #16a34a;
+}
+
+.error-message {
+    color: #dc2626;
+}
