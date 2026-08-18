@@ -29,6 +29,22 @@ pipeline {
             }
         }
 
+        stage('Start Spring Boot') {
+            steps {
+                bat '''
+                start /B java -jar target\\employee-enrollment-0.0.1-SNAPSHOT.jar > springboot.log 2>&1
+                '''
+            }
+        }
+
+        stage('Wait for Application') {
+            steps {
+                bat '''
+                powershell -Command "$max=30; for($i=0;$i -lt $max;$i++){ try { $r=Invoke-WebRequest -Uri 'http://localhost:8082/api/employees' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){ Write-Host 'Application is ready'; exit 0 } } catch {} ; Start-Sleep -Seconds 2 }; Write-Host 'Application did not start'; Get-Content springboot.log; exit 1"
+                '''
+            }
+        }
+
         stage('Playwright API Tests') {
             steps {
                 bat 'npx playwright test src/test/tests/employee-api.spec.js'
@@ -64,6 +80,10 @@ pipeline {
         always {
             junit allowEmptyResults: true,
                   testResults: 'target/surefire-reports/*.xml'
+
+            bat '''
+            powershell -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*employee-enrollment-0.0.1-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
+            '''
         }
     }
 }
