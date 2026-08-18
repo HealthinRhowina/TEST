@@ -1,7 +1,12 @@
 target/
-.idea/
-.vscode/
-*.iml
+node_modules/
+playwright-report/
+test-results/
+
+springboot.log
+docker-report.html
+pipeline-report.html
+
 .idea/
 .vscode/
 *.iml

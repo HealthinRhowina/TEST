@@ -1,14 +1,18 @@
 const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
+
     testDir: './src/test/tests',
 
     reporter: [
         ['list'],
-        ['html', {
-            outputFolder: 'playwright-report',
-            open: 'never'
-        }]
+        [
+            'html',
+            {
+                outputFolder: 'playwright-report',
+                open: 'never'
+            }
+        ]
     ],
 
     use: {

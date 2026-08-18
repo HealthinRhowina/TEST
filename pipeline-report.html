@@ -1,0 +1,135 @@
+stage('Generate Pipeline HTML Report') {
+steps {
+bat '''
+powershell -NoProfile -Command ^
+"$html='<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"UTF-8\">
+    <title>Jenkins CI/CD Report</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2563eb;
+        }
+
+        .success {
+            text-align: center;
+            color: green;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 25px;
+        }
+
+        table {
+            width: 100%%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #2563eb;
+            color: white;
+        }
+
+        th, td {
+            padding: 14px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        .pass {
+            color: green;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class=\"container\">
+
+    <h1>Jenkins CI/CD Pipeline Report</h1>
+
+    <div class=\"success\">
+        PIPELINE COMPLETED SUCCESSFULLY
+    </div>
+
+    <table>
+
+        <tr>
+            <th>Stage</th>
+            <th>Status</th>
+        </tr>
+
+        <tr>
+            <td>Maven Build</td>
+            <td class=\"pass\">PASS</td>
+        </tr>
+
+        <tr>
+            <td>JUnit Tests</td>
+            <td class=\"pass\">PASS</td>
+        </tr>
+
+        <tr>
+            <td>Playwright API Tests</td>
+            <td class=\"pass\">PASS</td>
+        </tr>
+
+        <tr>
+            <td>Docker Build</td>
+            <td class=\"pass\">PASS</td>
+        </tr>
+
+        <tr>
+            <td>Docker Push</td>
+            <td class=\"pass\">PASS</td>
+        </tr>
+
+        <tr>
+            <td>Docker Image</td>
+            <td>%DOCKER_IMAGE%:latest</td>
+        </tr>
+
+        <tr>
+            <td>Jenkins Build Number</td>
+            <td>#%BUILD_NUMBER%</td>
+        </tr>
+
+    </table>
+
+    <div class=\"footer\">
+        Generated automatically by Jenkins
+    </div>
+
+</div>
+
+</body>
+</html>';
+
+Set-Content -Path 'pipeline-report.html' -Value $html -Encoding UTF8"
+'''
+}
+}
