@@ -47,7 +47,7 @@ pipeline {
 
         stage('Playwright API Tests') {
             steps {
-                bat 'npx playwright test src/test/tests/employee-api.spec.js'
+                bat 'npx playwright test'
             }
         }
 
@@ -78,12 +78,23 @@ pipeline {
 
     post {
         always {
+
             junit allowEmptyResults: true,
                   testResults: 'target/surefire-reports/*.xml'
 
-            bat '''
-            powershell -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*employee-enrollment-0.0.1-SNAPSHOT.jar*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
-            '''
+            archiveArtifacts artifacts: 'playwright-report/**',
+                             allowEmptyArchive: true
+
+            archiveArtifacts artifacts: 'springboot.log',
+                             allowEmptyArchive: true
+        }
+
+        success {
+            echo 'All tests passed. Docker image built and pushed successfully.'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check JUnit and Playwright reports.'
         }
     }
 }
