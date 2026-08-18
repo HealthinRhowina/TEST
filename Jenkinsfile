@@ -7,6 +7,9 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'healthin0601/employee-enrollment'
+
+        DOCKER_PATH = 'C:\\Users\\hrhow\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin'
+        PATH = "${DOCKER_PATH};${env.PATH}"
     }
 
     stages {
@@ -51,6 +54,13 @@ pipeline {
             }
         }
 
+        stage('Check Docker') {
+            steps {
+                bat 'docker --version'
+                bat 'docker info'
+            }
+        }
+
         stage('Docker Build') {
             steps {
                 bat 'docker build -t %DOCKER_IMAGE%:latest .'
@@ -68,7 +78,9 @@ pipeline {
                 ]) {
                     bat '''
                     echo %DOCKER_TOKEN% | docker login -u %DOCKER_USER% --password-stdin
+
                     docker push %DOCKER_IMAGE%:latest
+
                     docker logout
                     '''
                 }
@@ -77,6 +89,7 @@ pipeline {
     }
 
     post {
+
         always {
 
             junit allowEmptyResults: true,
@@ -94,7 +107,7 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Check JUnit and Playwright reports.'
+            echo 'Pipeline failed. Check JUnit, Playwright, Docker, and application logs.'
         }
     }
 }
