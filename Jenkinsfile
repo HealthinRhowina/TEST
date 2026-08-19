@@ -85,11 +85,27 @@ pipeline {
                     )
                 ]) {
                     bat '''
-                    echo %DOCKER_TOKEN% | docker login -u %DOCKER_USER% --password-stdin
-                    if errorlevel 1 exit /b 1
+                    @echo off
+
+                    echo Logging into Docker Hub...
+
+                    powershell -NoProfile -Command "$env:DOCKER_TOKEN | docker login -u $env:DOCKER_USER --password-stdin"
+
+                    if errorlevel 1 (
+                        echo Docker Hub login failed
+                        exit /b 1
+                    )
+
+                    echo Docker Hub login successful
 
                     docker push %DOCKER_IMAGE%:latest
-                    if errorlevel 1 exit /b 1
+
+                    if errorlevel 1 (
+                        echo Docker Push failed
+                        exit /b 1
+                    )
+
+                    echo Docker image pushed successfully
 
                     docker logout
                     '''
