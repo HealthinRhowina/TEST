@@ -115,37 +115,36 @@ pipeline {
 
                         remote.user = K8S_USER
                         remote.password = K8S_PASSWORD
-
                         remote.allowAnyHosts = true
 
                         sshCommand remote: remote, command: '''
                             echo "========== KUBERNETES DEPLOYMENT =========="
 
+                            export KUBECONFIG=/home/mani/.kube/config
+
                             cd /home/mani/employee-k8s
 
                             echo "Current Pods:"
-                            sudo kubectl get pods
+                            kubectl get pods
 
-                            echo "Updating Docker image..."
-                            sudo kubectl set image deployment/employee-enrollment \
-                            employee-enrollment=healthin0601/employee-enrollment:latest
+                            echo "Restarting deployment with latest Docker image..."
 
-                            echo "Restarting deployment..."
-                            sudo kubectl rollout restart deployment/employee-enrollment
+                            kubectl rollout restart deployment/employee-enrollment
 
                             echo "Waiting for rollout..."
-                            sudo kubectl rollout status deployment/employee-enrollment --timeout=120s
 
-                            echo "========== DEPLOYMENT STATUS =========="
-                            sudo kubectl get deployments
+                            kubectl rollout status deployment/employee-enrollment --timeout=120s
 
-                            echo "========== POD STATUS =========="
-                            sudo kubectl get pods
+                            echo "========== DEPLOYMENTS =========="
+                            kubectl get deployments
 
-                            echo "========== SERVICE STATUS =========="
-                            sudo kubectl get svc
+                            echo "========== PODS =========="
+                            kubectl get pods
 
-                            echo "========== API TEST =========="
+                            echo "========== SERVICES =========="
+                            kubectl get svc
+
+                            echo "========== APPLICATION TEST =========="
                             curl -f http://localhost:30082/api/employees
 
                             echo ""
