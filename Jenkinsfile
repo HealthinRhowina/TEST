@@ -86,13 +86,16 @@ pipeline {
                 ]) {
                     bat '''
                     echo %DOCKER_TOKEN% | docker login -u %DOCKER_USER% --password-stdin
+                    if errorlevel 1 exit /b 1
+
                     docker push %DOCKER_IMAGE%:latest
+                    if errorlevel 1 exit /b 1
+
                     docker logout
                     '''
                 }
             }
         }
-
         // =====================================================
         // KUBERNETES DEPLOYMENT
         // =====================================================
