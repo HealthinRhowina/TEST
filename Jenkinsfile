@@ -93,10 +93,73 @@ pipeline {
             }
         }
 
+        // =====================================================
+        // KUBERNETES DEPLOYMENT
+        // =====================================================
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'kubernetes-server-ssh',
+                        usernameVariable: 'K8S_USER',
+                        passwordVariable: 'K8S_PASSWORD'
+                    )
+                ]) {
+                    script {
+
+                        def remote = [:]
+
+                        remote.name = 'kubernetes-server'
+                        remote.host = '122.165.70.116'
+                        remote.port = 22
+
+                        remote.user = K8S_USER
+                        remote.password = K8S_PASSWORD
+
+                        remote.allowAnyHosts = true
+
+                        sshCommand remote: remote, command: '''
+                            echo "========== KUBERNETES DEPLOYMENT =========="
+
+                            cd /home/mani/employee-k8s
+
+                            echo "Current Pods:"
+                            sudo kubectl get pods
+
+                            echo "Updating Docker image..."
+                            sudo kubectl set image deployment/employee-enrollment \
+                            employee-enrollment=healthin0601/employee-enrollment:latest
+
+                            echo "Restarting deployment..."
+                            sudo kubectl rollout restart deployment/employee-enrollment
+
+                            echo "Waiting for rollout..."
+                            sudo kubectl rollout status deployment/employee-enrollment --timeout=120s
+
+                            echo "========== DEPLOYMENT STATUS =========="
+                            sudo kubectl get deployments
+
+                            echo "========== POD STATUS =========="
+                            sudo kubectl get pods
+
+                            echo "========== SERVICE STATUS =========="
+                            sudo kubectl get svc
+
+                            echo "========== API TEST =========="
+                            curl -f http://localhost:30082/api/employees
+
+                            echo ""
+                            echo "Kubernetes deployment completed successfully."
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Generate Pipeline HTML Report') {
             steps {
                 bat '''
-                powershell -NoProfile -Command "$html='<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Jenkins CI/CD Report</title><style>body{font-family:Arial;background:#eef2f7;padding:40px}.container{max-width:900px;margin:auto;background:white;padding:35px;border-radius:15px}h1{color:#2563eb;text-align:center}.success{color:green;text-align:center;font-size:22px;font-weight:bold}table{width:100%%;border-collapse:collapse;margin-top:30px}th{background:#2563eb;color:white}th,td{padding:15px;border:1px solid #ddd}.pass{color:green;font-weight:bold}</style></head><body><div class=\"container\"><h1>Jenkins CI/CD Pipeline Report</h1><div class=\"success\">PIPELINE SUCCESS</div><table><tr><th>Stage</th><th>Status</th></tr><tr><td>Maven Build</td><td class=\"pass\">PASS</td></tr><tr><td>JUnit Tests</td><td class=\"pass\">PASS</td></tr><tr><td>Playwright API Tests</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Build</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Push</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Image</td><td>%DOCKER_IMAGE%:latest</td></tr><tr><td>Jenkins Build Number</td><td>#%BUILD_NUMBER%</td></tr></table></div></body></html>'; Set-Content pipeline-report.html $html -Encoding UTF8"
+                powershell -NoProfile -Command "$html='<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Jenkins CI/CD Report</title><style>body{font-family:Arial;background:#eef2f7;padding:40px}.container{max-width:900px;margin:auto;background:white;padding:35px;border-radius:15px}h1{color:#2563eb;text-align:center}.success{color:green;text-align:center;font-size:22px;font-weight:bold}table{width:100%%;border-collapse:collapse;margin-top:30px}th{background:#2563eb;color:white}th,td{padding:15px;border:1px solid #ddd}.pass{color:green;font-weight:bold}</style></head><body><div class=\"container\"><h1>Jenkins CI/CD Pipeline Report</h1><div class=\"success\">PIPELINE SUCCESS</div><table><tr><th>Stage</th><th>Status</th></tr><tr><td>Maven Build</td><td class=\"pass\">PASS</td></tr><tr><td>JUnit Tests</td><td class=\"pass\">PASS</td></tr><tr><td>Playwright API Tests</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Build</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Push</td><td class=\"pass\">PASS</td></tr><tr><td>Kubernetes Deployment</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Image</td><td>%DOCKER_IMAGE%:latest</td></tr><tr><td>Jenkins Build Number</td><td>#%BUILD_NUMBER%</td></tr></table></div></body></html>'; Set-Content pipeline-report.html $html -Encoding UTF8"
                 '''
             }
         }
@@ -104,6 +167,7 @@ pipeline {
 
     post {
         always {
+
             junit allowEmptyResults: true,
                   testResults: 'target/surefire-reports/*.xml'
 
@@ -127,11 +191,34 @@ pipeline {
         }
 
         success {
-            echo 'Pipeline completed successfully.'
+            echo '''
+            ========================================
+            PIPELINE COMPLETED SUCCESSFULLY
+
+            Maven Build          : PASS
+            Unit Tests           : PASS
+            Playwright Tests     : PASS
+            Docker Build         : PASS
+            Docker Push          : PASS
+            Kubernetes Deploy    : PASS
+            ========================================
+            '''
         }
 
         failure {
-            echo 'Pipeline failed. Check reports and logs.'
+            echo '''
+            ========================================
+            PIPELINE FAILED
+
+            Check:
+            - Maven
+            - JUnit
+            - Playwright
+            - Docker
+            - Kubernetes
+            - Application logs
+            ========================================
+            '''
         }
     }
 }
