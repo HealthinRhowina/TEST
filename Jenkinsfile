@@ -1,12 +1,16 @@
 pipeline {
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     tools {
         maven 'Maven-3.9.16'
     }
 
     environment {
-        DOCKER_IMAGE = 'healthin0601/employee-enrollment'
+        DOCKER_IMAGE = 'employee-enrollment'
         DOCKER_PATH = 'C:\\Users\\hrhow\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin'
         PATH = "${DOCKER_PATH};${env.PATH}"
     }
@@ -42,7 +46,7 @@ pipeline {
         stage('Wait for Application') {
             steps {
                 bat '''
-                powershell -Command "$max=30; for($i=0;$i -lt $max;$i++){ try { $r=Invoke-WebRequest -Uri 'http://localhost:8082/api/employees' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){ Write-Host 'Application is ready'; exit 0 } } catch {} ; Start-Sleep -Seconds 2 }; Write-Host 'Application did not start'; Get-Content springboot.log; exit 1"
+                powershell -Command "$max=30; for($i=0;$i -lt $max;$i++){ try { $r=Invoke-WebRequest -Uri 'http://localhost:8082/api/employees' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){ Write-Host 'Application is ready'; exit 0 } } catch {} ; Start-Sleep -Seconds 2 }; Write-Host 'Application did not start'; exit 1"
                 '''
             }
         }
@@ -53,190 +57,119 @@ pipeline {
             }
         }
 
-        stage('Check Docker') {
-            steps {
-                bat 'docker --version'
-                bat 'docker info'
-            }
-        }
-
         stage('Docker Build') {
             steps {
-                bat 'docker build -t %DOCKER_IMAGE%:latest .'
-                bat 'docker images %DOCKER_IMAGE%'
-            }
-        }
-
-        stage('Generate Docker HTML Report') {
-            steps {
                 bat '''
-                powershell -NoProfile -Command "$image = docker image inspect '%DOCKER_IMAGE%:latest' | ConvertFrom-Json; $repo='%DOCKER_IMAGE%'; $tag='latest'; $id=$image.Id.Substring(7,12); $created=$image.Created; $size=[math]::Round($image.Size/1MB,2); $html='<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Docker Report</title><style>body{font-family:Arial;background:#f4f6f8;padding:40px}.container{max-width:850px;margin:auto;background:white;padding:30px;border-radius:12px}h1{text-align:center;color:#2496ed}.success{color:green;font-size:20px;font-weight:bold;text-align:center}table{width:100%%;border-collapse:collapse;margin-top:25px}th{background:#2496ed;color:white}th,td{padding:14px;border:1px solid #ddd}</style></head><body><div class=\"container\"><h1>Docker Image Report</h1><div class=\"success\">Docker Image Created Successfully</div><table><tr><th>Property</th><th>Value</th></tr><tr><td>Repository</td><td>'+$repo+'</td></tr><tr><td>Tag</td><td>'+$tag+'</td></tr><tr><td>Image ID</td><td>'+$id+'</td></tr><tr><td>Created</td><td>'+$created+'</td></tr><tr><td>Image Size</td><td>'+$size+' MB</td></tr><tr><td>Jenkins Build</td><td>#%BUILD_NUMBER%</td></tr><tr><td>Docker Build</td><td>PASS</td></tr></table></div></body></html>'; Set-Content docker-report.html $html -Encoding UTF8"
+                docker build -t employee-enrollment:latest .
+                docker images employee-enrollment
                 '''
             }
         }
 
-        stage('Docker Push') {
+        stage('Save Docker Image') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_TOKEN'
-                    )
-                ]) {
-                    bat '''
-                    @echo off
-
-                    echo Logging into Docker Hub...
-
-                    powershell -NoProfile -Command "$env:DOCKER_TOKEN | docker login -u $env:DOCKER_USER --password-stdin"
-
-                    if errorlevel 1 (
-                        echo Docker Hub login failed
-                        exit /b 1
-                    )
-
-                    echo Docker Hub login successful
-
-                    docker push %DOCKER_IMAGE%:latest
-
-                    if errorlevel 1 (
-                        echo Docker Push failed
-                        exit /b 1
-                    )
-
-                    echo Docker image pushed successfully
-
-                    docker logout
-                    '''
-                }
+                bat '''
+                if exist employee-enrollment.tar del employee-enrollment.tar
+                docker save -o employee-enrollment.tar employee-enrollment:latest
+                '''
             }
         }
-        // =====================================================
-        // KUBERNETES DEPLOYMENT
-        // =====================================================
+
+        stage('Transfer and Import Image') {
+            steps {
+                sshPublisher(
+                    publishers: [
+                        sshPublisherDesc(
+                            configName: 'office-server',
+                            transfers: [
+                                sshTransfer(
+                                    sourceFiles: 'employee-enrollment.tar',
+                                    remoteDirectory: '.',
+                                    execCommand: '''
+                                        echo "Importing Docker image into K3s..."
+
+                                        sudo k3s ctr images import /home/mani/employee-enrollment.tar
+
+                                        echo "Image imported successfully."
+
+                                        sudo k3s ctr images list | grep employee-enrollment
+                                    '''
+                                )
+                            ],
+                            verbose: true
+                        )
+                    ]
+                )
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'kubernetes-server-ssh',
-                        usernameVariable: 'K8S_USER',
-                        passwordVariable: 'K8S_PASSWORD'
-                    )
-                ]) {
-                    script {
+                sshPublisher(
+                    publishers: [
+                        sshPublisherDesc(
+                            configName: 'office-server',
+                            transfers: [
+                                sshTransfer(
+                                    execCommand: '''
+                                        export KUBECONFIG=/home/mani/.kube/config
 
-                        def remote = [:]
+                                        echo "Restarting Employee Deployment..."
 
-                        remote.name = 'kubernetes-server'
-                        remote.host = '122.165.70.116'
-                        remote.port = 22
+                                        kubectl rollout restart deployment/employee-enrollment
 
-                        remote.user = K8S_USER
-                        remote.password = K8S_PASSWORD
-                        remote.allowAnyHosts = true
+                                        kubectl rollout status deployment/employee-enrollment --timeout=120s
 
-                        sshCommand remote: remote, command: '''
-                            echo "========== KUBERNETES DEPLOYMENT =========="
+                                        echo "========== PODS =========="
+                                        kubectl get pods
 
-                            export KUBECONFIG=/home/mani/.kube/config
+                                        echo "========== SERVICES =========="
+                                        kubectl get svc
 
-                            cd /home/mani/employee-k8s
-
-                            echo "Current Pods:"
-                            kubectl get pods
-
-                            echo "Restarting deployment with latest Docker image..."
-
-                            kubectl rollout restart deployment/employee-enrollment
-
-                            echo "Waiting for rollout..."
-
-                            kubectl rollout status deployment/employee-enrollment --timeout=120s
-
-                            echo "========== DEPLOYMENTS =========="
-                            kubectl get deployments
-
-                            echo "========== PODS =========="
-                            kubectl get pods
-
-                            echo "========== SERVICES =========="
-                            kubectl get svc
-
-                            echo "========== APPLICATION TEST =========="
-                            curl -f http://localhost:30082/api/employees
-
-                            echo ""
-                            echo "Kubernetes deployment completed successfully."
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Generate Pipeline HTML Report') {
-            steps {
-                bat '''
-                powershell -NoProfile -Command "$html='<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Jenkins CI/CD Report</title><style>body{font-family:Arial;background:#eef2f7;padding:40px}.container{max-width:900px;margin:auto;background:white;padding:35px;border-radius:15px}h1{color:#2563eb;text-align:center}.success{color:green;text-align:center;font-size:22px;font-weight:bold}table{width:100%%;border-collapse:collapse;margin-top:30px}th{background:#2563eb;color:white}th,td{padding:15px;border:1px solid #ddd}.pass{color:green;font-weight:bold}</style></head><body><div class=\"container\"><h1>Jenkins CI/CD Pipeline Report</h1><div class=\"success\">PIPELINE SUCCESS</div><table><tr><th>Stage</th><th>Status</th></tr><tr><td>Maven Build</td><td class=\"pass\">PASS</td></tr><tr><td>JUnit Tests</td><td class=\"pass\">PASS</td></tr><tr><td>Playwright API Tests</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Build</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Push</td><td class=\"pass\">PASS</td></tr><tr><td>Kubernetes Deployment</td><td class=\"pass\">PASS</td></tr><tr><td>Docker Image</td><td>%DOCKER_IMAGE%:latest</td></tr><tr><td>Jenkins Build Number</td><td>#%BUILD_NUMBER%</td></tr></table></div></body></html>'; Set-Content pipeline-report.html $html -Encoding UTF8"
-                '''
+                                        echo "========== APPLICATION TEST =========="
+                                        curl -f http://localhost:30082/api/employees
+                                    '''
+                                )
+                            ],
+                            verbose: true
+                        )
+                    ]
+                )
             }
         }
     }
 
     post {
-        always {
 
+        always {
             junit allowEmptyResults: true,
                   testResults: 'target/surefire-reports/*.xml'
 
             archiveArtifacts artifacts: 'playwright-report/**',
                              allowEmptyArchive: true
 
-            archiveArtifacts artifacts: 'docker-report.html',
-                             allowEmptyArchive: true
-
-            archiveArtifacts artifacts: 'pipeline-report.html',
-                             allowEmptyArchive: true
-
             archiveArtifacts artifacts: 'springboot.log',
-                             allowEmptyArchive: true
-
-            archiveArtifacts artifacts: 'reports/api-performance.html',
-                             allowEmptyArchive: true
-
-            archiveArtifacts artifacts: 'reports/api-performance.json',
                              allowEmptyArchive: true
         }
 
         success {
             echo '''
-            ========================================
-            PIPELINE COMPLETED SUCCESSFULLY
+            ==================================
+            DEPLOYMENT SUCCESS
 
-            Maven Build          : PASS
-            Unit Tests           : PASS
-            Playwright Tests     : PASS
-            Docker Build         : PASS
-            Docker Push          : PASS
-            Kubernetes Deploy    : PASS
-            ========================================
+            Maven Build       : PASS
+            Unit Tests        : PASS
+            Playwright        : PASS
+            Docker Build      : PASS
+            Image Transfer    : PASS
+            K3s Import        : PASS
+            Kubernetes Deploy : PASS
+            ==================================
             '''
         }
 
         failure {
-            echo '''
-            ========================================
-            PIPELINE FAILED
-
-            Check:
-            - Maven
-            - JUnit
-            - Playwright
-            - Docker
-            - Kubernetes
-            - Application logs
-            ========================================
-            '''
+            echo 'Build or deployment failed. Check Console Output.'
         }
     }
 }
